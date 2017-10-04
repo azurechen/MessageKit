@@ -54,6 +54,20 @@ open class MessagesCollectionViewFlowLayout: UICollectionViewFlowLayout {
         return messagesCollectionView
     }
 
+    fileprivate var messagesDataSource: MessagesDataSource {
+        guard let messagesDataSource = messagesCollectionView.messagesDataSource else {
+            fatalError("MessagesDataSource has not been set.")
+        }
+        return messagesDataSource
+    }
+
+    fileprivate var messagesLayoutDelegate: MessagesLayoutDelegate {
+        guard let messagesLayoutDelegate = messagesCollectionView.messagesLayoutDelegate else {
+            fatalError("MessagesLayoutDeleagte has not been set.")
+        }
+        return messagesLayoutDelegate
+    }
+
     fileprivate var itemWidth: CGFloat {
         guard let collectionView = collectionView else { return 0 }
         return collectionView.frame.width - sectionInset.left - sectionInset.right
@@ -112,10 +126,8 @@ open class MessagesCollectionViewFlowLayout: UICollectionViewFlowLayout {
 
     private func configure(attributes: MessagesCollectionViewLayoutAttributes) {
 
-        guard let dataSource = messagesCollectionView.messagesDataSource else { return }
-
         let indexPath = attributes.indexPath
-        let message = dataSource.messageForItem(at: indexPath, in: messagesCollectionView)
+        let message = messagesDataSource.messageForItem(at: indexPath, in: messagesCollectionView)
         let messagePadding = messageContainerPadding(for: message, at: indexPath)
         let messageInsets = messageLabelInsets(for: message, at: indexPath)
         let topLabelInsets = cellTopLabelInsets(for: message, at: indexPath)
@@ -134,8 +146,7 @@ open class MessagesCollectionViewFlowLayout: UICollectionViewFlowLayout {
         attributes.cellBottomLabelInsets = bottomLabelInsets
         attributes.avatarHorizontalAlignment = avatarHorizontalAlignment(for: message)
 
-        let layoutDelegate = messagesCollectionView.messagesLayoutDelegate
-        let avatarAlignment = layoutDelegate?.avatarAlignment(for: message, at: indexPath, in: messagesCollectionView) ?? .messageBottom
+        let avatarAlignment = messagesLayoutDelegate.avatarAlignment(for: message, at: indexPath, in: messagesCollectionView)
 
         // Now we set the origins for the frames using the attributes object that contains the calculated sizes
         attributes.messageContainerFrame.origin = messageContainerOrigin(for: attributes)
@@ -172,17 +183,12 @@ extension MessagesCollectionViewFlowLayout {
         if avatarAlwaysTrailing { return .cellTrailing }
         if avatarAlwaysLeading { return .cellLeading }
 
-        guard let messagesDataSource = messagesCollectionView.messagesDataSource else { return .cellLeading }
-
         return messagesDataSource.isFromCurrentSender(message: message) ? .cellTrailing : .cellLeading
     }
 
     /// The size of the avatar view.
     fileprivate func avatarSize(for message: MessageType, at indexPath: IndexPath) -> CGSize {
-
-        guard let layoutDelegate = messagesCollectionView.messagesLayoutDelegate else { return .zero }
-
-        return layoutDelegate.avatarSize(for: message, at: indexPath, in: messagesCollectionView)
+        return messagesLayoutDelegate.avatarSize(for: message, at: indexPath, in: messagesCollectionView)
     }
 
     /// The origin for the avatar view.
@@ -255,14 +261,12 @@ extension MessagesCollectionViewFlowLayout {
     // MARK: - Message Container Calculations
 
     fileprivate func messageContainerPadding(for message: MessageType, at indexPath: IndexPath) -> UIEdgeInsets {
-        guard let layoutDelegate = messagesCollectionView.messagesLayoutDelegate else { return .zero }
-        return layoutDelegate.messagePadding(for: message, at: indexPath, in: messagesCollectionView)
+        return messagesLayoutDelegate.messagePadding(for: message, at: indexPath, in: messagesCollectionView)
     }
 
     /// The insets for the text of the MessageLabel
     private func messageLabelInsets(for message: MessageType, at indexPath: IndexPath) -> UIEdgeInsets {
-        guard let layoutDelegate = messagesCollectionView.messagesLayoutDelegate else { return .zero }
-        return layoutDelegate.messageLabelInset(for: message, at: indexPath, in: messagesCollectionView)
+        return messagesLayoutDelegate.messageLabelInset(for: message, at: indexPath, in: messagesCollectionView)
     }
 
     /// The max width available for the message container.
@@ -300,12 +304,12 @@ extension MessagesCollectionViewFlowLayout {
             messageContainerSize.width += messageHorizontalInsets
             messageContainerSize.height += messageVerticalInsets
         case .photo, .video:
-            guard let layoutDelegate = messagesCollectionView.messagesLayoutDelegate as? MediaMessageLayoutDelegate else { return .zero }
+            guard let layoutDelegate = messagesLayoutDelegate as? MediaMessageLayoutDelegate else { return .zero }
             let width = layoutDelegate.widthForMedia(message: message, at: indexPath, with: maxWidth, in: messagesCollectionView)
             let height = layoutDelegate.heightForMedia(message: message, at: indexPath, with: maxWidth, in: messagesCollectionView)
             messageContainerSize = CGSize(width: width, height: height)
         case .location:
-            guard let layoutDelegate = messagesCollectionView.messagesLayoutDelegate as? LocationMessageLayoutDelegate else { return .zero }
+            guard let layoutDelegate = messagesLayoutDelegate as? LocationMessageLayoutDelegate else { return .zero }
             let width = layoutDelegate.widthForLocation(message: message, at: indexPath, with: maxWidth, in: messagesCollectionView)
             let height = layoutDelegate.heightForLocation(message: message, at: indexPath, with: maxWidth, in: messagesCollectionView)
             messageContainerSize = CGSize(width: width, height: height)
@@ -338,21 +342,19 @@ extension MessagesCollectionViewFlowLayout {
 
     /// The insets for the cell's top label.
     private func cellTopLabelInsets(for message: MessageType, at indexPath: IndexPath) -> UIEdgeInsets {
-        guard let layoutDelegate = messagesCollectionView.messagesLayoutDelegate else { return .zero }
-        let labelAlignment = layoutDelegate.cellTopLabelAlignment(for: message, at: indexPath, in: messagesCollectionView)
+        let labelAlignment = messagesLayoutDelegate.cellTopLabelAlignment(for: message, at: indexPath, in: messagesCollectionView)
         return labelAlignment.insets
     }
 
     /// The max width available for the cell top label.
     private func topLabelMaxWidth(for message: MessageType, at indexPath: IndexPath) -> CGFloat {
-        guard let layoutDelegate = messagesCollectionView.messagesLayoutDelegate else { return 0 }
 
-        let labelHorizontal = layoutDelegate.cellTopLabelAlignment(for: message, at: indexPath, in: messagesCollectionView)
-        let avatarVertical = layoutDelegate.avatarAlignment(for: message, at: indexPath, in: messagesCollectionView)
+        let labelHorizontal = messagesLayoutDelegate.cellTopLabelAlignment(for: message, at: indexPath, in: messagesCollectionView)
+        let avatarVertical = messagesLayoutDelegate.avatarAlignment(for: message, at: indexPath, in: messagesCollectionView)
         let avatarHorizontal = avatarHorizontalAlignment(for: message)
         let topLabelHorizontalInsets = labelHorizontal.insets.left + labelHorizontal.insets.right
 
-        let avatarWidth = layoutDelegate.avatarSize(for: message, at: indexPath, in: messagesCollectionView).width
+        let avatarWidth = messagesLayoutDelegate.avatarSize(for: message, at: indexPath, in: messagesCollectionView).width
 
         switch (labelHorizontal, avatarHorizontal, avatarVertical) {
 
@@ -381,8 +383,7 @@ extension MessagesCollectionViewFlowLayout {
 
     /// The size of the cell top label.
     fileprivate func cellTopLabelSize(for message: MessageType, at indexPath: IndexPath) -> CGSize {
-        guard let dataSource = messagesCollectionView.messagesDataSource else { return .zero }
-        guard let topLabelText = dataSource.cellTopLabelAttributedText(for: message, at: indexPath) else { return .zero }
+        guard let topLabelText = messagesDataSource.cellTopLabelAttributedText(for: message, at: indexPath) else { return .zero }
 
         let maxWidth = topLabelMaxWidth(for: message, at: indexPath)
         var size = labelSize(for: topLabelText, considering: maxWidth)
@@ -400,9 +401,8 @@ extension MessagesCollectionViewFlowLayout {
 
     /// The origin for the cell top label.
     fileprivate func cellTopLabelOrigin(for message: MessageType, and attributes: MessagesCollectionViewLayoutAttributes) -> CGPoint {
-        guard let layoutDelegate = messagesCollectionView.messagesLayoutDelegate else { return .zero }
 
-        let labelAlignment = layoutDelegate.cellTopLabelAlignment(for: message, at: attributes.indexPath, in: messagesCollectionView)
+        let labelAlignment = messagesLayoutDelegate.cellTopLabelAlignment(for: message, at: attributes.indexPath, in: messagesCollectionView)
         let avatarAlignment = avatarHorizontalAlignment(for: message)
 
         var origin = CGPoint.zero
@@ -432,22 +432,19 @@ extension MessagesCollectionViewFlowLayout {
 
     /// The insets for the cell's top label.
     private func cellBottomLabelInsets(for message: MessageType, at indexPath: IndexPath) -> UIEdgeInsets {
-        guard let layoutDelegate = messagesCollectionView.messagesLayoutDelegate else { return .zero }
-        let labelAlignment = layoutDelegate.cellBottomLabelAlignment(for: message, at: indexPath, in: messagesCollectionView)
+        let labelAlignment = messagesLayoutDelegate.cellBottomLabelAlignment(for: message, at: indexPath, in: messagesCollectionView)
         return labelAlignment.insets
     }
 
     /// The max with available for the cell bottom label.
     private func bottomLabelMaxWidth(for message: MessageType, at indexPath: IndexPath) -> CGFloat {
 
-        guard let layoutDelegate = messagesCollectionView.messagesLayoutDelegate else { return 0 }
-
-        let labelHorizontal = layoutDelegate.cellBottomLabelAlignment(for: message, at: indexPath, in: messagesCollectionView)
-        let avatarVertical = layoutDelegate.avatarAlignment(for: message, at: indexPath, in: messagesCollectionView)
+        let labelHorizontal = messagesLayoutDelegate.cellBottomLabelAlignment(for: message, at: indexPath, in: messagesCollectionView)
+        let avatarVertical = messagesLayoutDelegate.avatarAlignment(for: message, at: indexPath, in: messagesCollectionView)
         let avatarHorizontal = avatarHorizontalAlignment(for: message)
         let bottomLabelHorizontalInsets = labelHorizontal.insets.left + labelHorizontal.insets.right
 
-        let avatarWidth = layoutDelegate.avatarSize(for: message, at: indexPath, in: messagesCollectionView).width
+        let avatarWidth = messagesLayoutDelegate.avatarSize(for: message, at: indexPath, in: messagesCollectionView).width
 
         switch (labelHorizontal, avatarHorizontal, avatarVertical) {
 
@@ -478,8 +475,7 @@ extension MessagesCollectionViewFlowLayout {
     /// The size for the cell bottom label.
     fileprivate func cellBottomLabelSize(for message: MessageType, at indexPath: IndexPath) -> CGSize {
 
-        guard let dataSource = messagesCollectionView.messagesDataSource else { return .zero }
-        guard let bottomLabelText = dataSource.cellBottomLabelAttributedText(for: message, at: indexPath) else { return .zero }
+        guard let bottomLabelText = messagesDataSource.cellBottomLabelAttributedText(for: message, at: indexPath) else { return .zero }
 
         let maxWidth = bottomLabelMaxWidth(for: message, at: indexPath)
         var size = labelSize(for: bottomLabelText, considering: maxWidth)
@@ -498,9 +494,7 @@ extension MessagesCollectionViewFlowLayout {
     /// The origin for the cell bottom label.
     fileprivate func cellBottomLabelOrigin(for message: MessageType, and attributes: MessagesCollectionViewLayoutAttributes) -> CGPoint {
 
-        guard let layoutDelegate = messagesCollectionView.messagesLayoutDelegate else { return .zero }
-
-        let labelAlignment = layoutDelegate.cellBottomLabelAlignment(for: message, at: attributes.indexPath, in: messagesCollectionView)
+        let labelAlignment = messagesLayoutDelegate.cellBottomLabelAlignment(for: message, at: attributes.indexPath, in: messagesCollectionView)
         let avatarAlignment = avatarHorizontalAlignment(for: message)
 
         var origin = CGPoint(x: 0, y: attributes.frame.height - attributes.cellBottomLabelFrame.height)
@@ -531,9 +525,7 @@ extension MessagesCollectionViewFlowLayout {
     /// The minimum height for the cell.
     private func minimumCellHeight(for message: MessageType, at indexPath: IndexPath) -> CGFloat {
 
-        guard let layoutDelegate = messagesCollectionView.messagesLayoutDelegate else { return 0 }
-
-        let avatarAlignment = layoutDelegate.avatarAlignment(for: message, at: indexPath, in: messagesCollectionView)
+        let avatarAlignment = messagesLayoutDelegate.avatarAlignment(for: message, at: indexPath, in: messagesCollectionView)
 
         let topLabelHeight = cellTopLabelSize(for: message, at: indexPath).height
         let avatarHeight = avatarSize(for: message, at: indexPath).height
@@ -582,3 +574,4 @@ extension MessagesCollectionViewFlowLayout {
     }
     
 }
+
