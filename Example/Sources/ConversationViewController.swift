@@ -165,6 +165,7 @@ class ConversationViewController: MessagesViewController {
         let newMessageInputBar = MessageInputBar()
         newMessageInputBar.delegate = self
         messageInputBar = newMessageInputBar
+        messageInputBar.sendButton.onSelected { _ in self.messagesCollectionView.reloadData() }
         reloadInputViews()
     }
     

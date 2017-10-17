@@ -33,4 +33,5 @@ public protocol MessageType {
     var sentDate: Date { get }
 
     var data: MessageData { get }
+
 }

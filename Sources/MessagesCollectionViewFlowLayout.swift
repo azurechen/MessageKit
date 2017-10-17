@@ -46,8 +46,12 @@ open class MessagesCollectionViewFlowLayout: UICollectionViewFlowLayout {
             }
         }
     }
-    
-    fileprivate var intermediateAttributesCache: [IndexPath: MessageIntermediateLayoutAttributes] = [:]
+
+    open var attributesCacheMaxSize: Int = 500
+
+    typealias MessageID = String
+
+    fileprivate var intermediateAttributesCache: [MessageID: MessageIntermediateLayoutAttributes] = [:]
 
     fileprivate var messagesCollectionView: MessagesCollectionView {
         guard let messagesCollectionView = collectionView as? MessagesCollectionView else {
@@ -154,9 +158,12 @@ open class MessagesCollectionViewFlowLayout: UICollectionViewFlowLayout {
     // MARK: - Invalidation Context
 
     open override func shouldInvalidateLayout(forBoundsChange newBounds: CGRect) -> Bool {
-
-        return collectionView?.bounds.width != newBounds.width
-
+        if collectionView?.bounds.width != newBounds.width {
+            intermediateAttributesCache = [:]
+            return true
+        } else {
+            return false
+        }
     }
 
     open override func invalidationContext(forBoundsChange newBounds: CGRect) -> UICollectionViewLayoutInvalidationContext {
@@ -164,6 +171,10 @@ open class MessagesCollectionViewFlowLayout: UICollectionViewFlowLayout {
         guard let flowLayoutContext = context as? UICollectionViewFlowLayoutInvalidationContext else { return context }
         flowLayoutContext.invalidateFlowLayoutDelegateMetrics = shouldInvalidateLayout(forBoundsChange: newBounds)
         return flowLayoutContext
+    }
+
+    public func clearCachedAttributes(for message: MessageType) {
+        intermediateAttributesCache.removeValue(forKey: message.messageId)
     }
 
 }
@@ -216,44 +227,53 @@ extension MessagesCollectionViewFlowLayout {
     }
     
     func messageIntermediateLayoutAttributes(for indexPath: IndexPath) -> MessageIntermediateLayoutAttributes {
-        
-        if let intermediateAttributes = intermediateAttributesCache[indexPath] {
+
+        let message = messagesDataSource.messageForItem(at: indexPath, in: messagesCollectionView)
+
+        if let intermediateAttributes = intermediateAttributesCache[message.messageId] {
             return intermediateAttributes
         } else {
-            
-            let message = messagesDataSource.messageForItem(at: indexPath, in: messagesCollectionView)
-            let attributes = MessageIntermediateLayoutAttributes(message: message, indexPath: indexPath)
-            
-            // None of these are dependent on other attributes
-            attributes.avatarVertical = avatarVerticalAlignment(for: attributes)
-            attributes.avatarHorizontal = avatarHorizontalAlignment(for: attributes)
-            attributes.avatarSize = avatarSize(for: attributes)
-            attributes.messageContainerPadding = messageContainerPadding(for: attributes)
-            attributes.messageLabelInsets = messageLabelInsets(for: attributes)
-            
-            // MessageContainerView
-            attributes.messageContainerMaxWidth = messageContainerMaxWidth(for: attributes)
-            attributes.messageContainerSize = messageContainerSize(for: attributes)
-            
-            // Cell Bottom Label
-            attributes.cellBottomLabelText = cellBottomLabelText(for: attributes) // little concerned about storing text here TODO
-            attributes.cellBottomLabelAlignment = cellBottomLabelAlignment(for: attributes)
-            attributes.cellBottomLabelMaxWidth = cellBottomLabelMaxWidth(for: attributes)
-            attributes.cellBottomLabelSize = cellBottomLabelSize(for: attributes)
-            
-            // Cell Top Label
-            attributes.cellTopLabelText = cellTopLabelText(for: attributes) // little concerned about storing text here TODO
-            attributes.cellTopLabelAlignment = cellTopLabelAlignment(for: attributes)
-            attributes.cellTopLabelMaxWidth = cellTopLabelMaxWidth(for: attributes)
-            attributes.cellTopLabelSize = cellTopLabelSize(for: attributes)
-            
-            attributes.itemHeight = cellHeight(for: attributes)
-            
-            intermediateAttributesCache[indexPath] = attributes
-            
-            return attributes
+            let newAttributes = createMessageIntermediateLayoutAttributes(for: message, at: indexPath)
+
+            if intermediateAttributesCache.count < attributesCacheMaxSize {
+                intermediateAttributesCache[message.messageId] = newAttributes
+            }
+            return newAttributes
         }
         
+    }
+
+    func createMessageIntermediateLayoutAttributes(for message: MessageType, at indexPath: IndexPath) -> MessageIntermediateLayoutAttributes {
+
+        let attributes = MessageIntermediateLayoutAttributes(message: message, indexPath: indexPath)
+
+        // None of these are dependent on other attributes
+        attributes.avatarVertical = avatarVerticalAlignment(for: attributes)
+        attributes.avatarHorizontal = avatarHorizontalAlignment(for: attributes)
+        attributes.avatarSize = avatarSize(for: attributes)
+        attributes.messageContainerPadding = messageContainerPadding(for: attributes)
+        attributes.messageLabelInsets = messageLabelInsets(for: attributes)
+
+        // MessageContainerView
+        attributes.messageContainerMaxWidth = messageContainerMaxWidth(for: attributes)
+        attributes.messageContainerSize = messageContainerSize(for: attributes)
+
+        // Cell Bottom Label
+        attributes.cellBottomLabelText = cellBottomLabelText(for: attributes) // little concerned about storing text here TODO
+        attributes.cellBottomLabelAlignment = cellBottomLabelAlignment(for: attributes)
+        attributes.cellBottomLabelMaxWidth = cellBottomLabelMaxWidth(for: attributes)
+        attributes.cellBottomLabelSize = cellBottomLabelSize(for: attributes)
+
+        // Cell Top Label
+        attributes.cellTopLabelText = cellTopLabelText(for: attributes) // little concerned about storing text here TODO
+        attributes.cellTopLabelAlignment = cellTopLabelAlignment(for: attributes)
+        attributes.cellTopLabelMaxWidth = cellTopLabelMaxWidth(for: attributes)
+        attributes.cellTopLabelSize = cellTopLabelSize(for: attributes)
+
+        // Cell Height
+        attributes.itemHeight = cellHeight(for: attributes)
+
+        return attributes
     }
     
     // MARK: - AvatarView Size [ A - C ]
@@ -538,6 +558,8 @@ extension MessagesCollectionViewFlowLayout {
     // S
     private func cellBottomLabelOrigin(for attributes: MessageIntermediateLayoutAttributes, and contentFrame: CGRect) -> CGPoint {
 
+        guard attributes.cellBottomLabelSize != .zero else { return .zero }
+
         var origin = CGPoint(x: 0, y: contentFrame.height - attributes.cellBottomLabelSize.height)
 
         switch (attributes.cellBottomLabelAlignment, attributes.avatarHorizontal) {
@@ -564,6 +586,8 @@ extension MessagesCollectionViewFlowLayout {
     // T
     fileprivate func cellTopLabelOrigin(for attributes: MessageIntermediateLayoutAttributes, and contentFrame: CGRect) -> CGPoint {
 
+        guard attributes.cellTopLabelSize != .zero else { return .zero }
+
         var origin = CGPoint.zero
 
         switch (attributes.cellTopLabelAlignment, attributes.avatarHorizontal) {
@@ -588,6 +612,5 @@ extension MessagesCollectionViewFlowLayout {
     }
 
 }
-
 
 
